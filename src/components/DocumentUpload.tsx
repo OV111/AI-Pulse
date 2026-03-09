@@ -45,7 +45,7 @@ function DocumentUpload({
   };
 
   return (
-    <section className="bg-[#03070f]">
+    <section className="min-h-screen bg-[#03070f]">
       <header className="flex h-11 items-center gap-2 border-b border-[#0f1f31] px-4 text-xs text-slate-400">
         <button
           type="button"
@@ -58,7 +58,7 @@ function DocumentUpload({
         <span className="text-slate-300">Dashboard</span>
       </header>
 
-      <div className="p-4 md:p-6">
+      <div className="mx-auto w-full max-w-6xl p-4 md:p-6">
         <div className="mb-4">
           <h2 className="text-lg font-semibold text-slate-100">
             Upload Documents

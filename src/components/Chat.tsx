@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { ArrowUp, PanelLeft, Sparkles } from "lucide-react";
+import useSWRMutation from "swr/mutation";
 
 type ChatMessage = {
   role: "user" | "assistant";
@@ -15,34 +16,93 @@ const suggestions = [
 
 type ChatProps = {
   onToggleSidebar: () => void;
+  documentId?: string;
 };
 
-function Chat({ onToggleSidebar }: ChatProps) {
+type ChatApiPayload = {
+  messages: Array<{ role: "user" | "assistant"; content: string }>;
+  documentId?: string;
+};
+
+type ChatApiResponse = {
+  message?: { role: "assistant"; content: string };
+};
+
+const postGeneralChat = async (
+  url: string,
+  { arg }: { arg: ChatApiPayload },
+): Promise<ChatApiResponse> => {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(arg),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Request failed with status ${response.status}`);
+  }
+
+  return response.json();
+};
+
+function Chat({ onToggleSidebar, documentId }: ChatProps) {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isThinking, setIsThinking] = useState(false);
+  const isDocumentChat = Boolean(documentId);
+  const chatUrl = isDocumentChat
+    ? "http://localhost:5000/chat"
+    : "http://localhost:5000/chat/general";
 
-  const hasMessages = messages.length > 0;
-  const headerLabel = useMemo(
-    () => (hasMessages ? "Express.js" : "All Documents Chat"),
-    [hasMessages],
-  );
-  const badgeLabel = useMemo(
-    () => (hasMessages ? "4 chunks" : "1 document"),
-    [hasMessages],
-  );
-
-  const sendMessage = (text: string) => {
+  const { trigger: triggerChat } = useSWRMutation(chatUrl, postGeneralChat);
+  const sendMessage = async (text: string) => {
     const content = text.trim();
     if (!content) return;
 
-    setMessages((prev) => [...prev, { role: "user", text: content }]);
+    const updatedMessages = [
+      ...messages,
+      { role: "user" as const, text: content },
+    ];
+    setMessages(updatedMessages);
     setInput("");
     setIsThinking(true);
+
+    try {
+      const payload: ChatApiPayload = {
+        messages: updatedMessages.map((message) => ({
+          role: message.role,
+          content: message.text,
+        })),
+      };
+      if (isDocumentChat) payload.documentId = documentId;
+
+      const data = await triggerChat(payload);
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          text:
+            data.message?.content ??
+            "I could not generate a response right now. Try again.",
+        },
+      ]);
+    } catch (error) {
+      console.error("Chat request failed:", error);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          text: "Something went wrong while calling the chat API. Please try again.",
+        },
+      ]);
+    } finally {
+      setIsThinking(false);
+    }
   };
 
   return (
-    <section className="flex h-screen max-h-screen flex-col bg-[#03070f]">
+    <section className="flex min-h-screen flex-col bg-[#03070f]">
       <header className="flex h-11 items-center gap-2 border-b border-[#0f1f31] px-4 text-xs text-slate-400">
         <button
           type="button"
@@ -52,14 +112,12 @@ function Chat({ onToggleSidebar }: ChatProps) {
         >
           <PanelLeft size={12} />
         </button>
-        <span className="text-slate-300">{headerLabel}</span>
-        <span className="rounded-md border border-[#1e2f44] bg-[#0d1522] px-1.5 py-0.5 text-[10px] text-slate-400">
-          {badgeLabel}
-        </span>
+
+        <span>All Documents Chat</span>
       </header>
 
-      <div className="relative flex-1 overflow-y-auto px-4 py-5">
-        {!hasMessages ? (
+      <div className="relative mx-auto flex w-full max-w-6xl flex-1 overflow-y-auto px-4 py-5">
+        {!(messages.length > 0) ? (
           <div className="mx-auto mt-20 max-w-xl text-center">
             <div className="mx-auto mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-[#0a2d50] text-[#4ca1ff]">
               <Sparkles size={16} />
@@ -80,7 +138,7 @@ function Chat({ onToggleSidebar }: ChatProps) {
                 <button
                   key={item}
                   type="button"
-                  onClick={() => sendMessage(item)}
+                  onClick={() => void sendMessage(item)}
                   className="rounded-xl border border-[#1a2c41] bg-[#071021] px-3 py-2 text-xs text-slate-400 transition hover:border-[#28507e] hover:text-slate-300"
                 >
                   {item}
@@ -90,17 +148,27 @@ function Chat({ onToggleSidebar }: ChatProps) {
           </div>
         ) : (
           <div className="space-y-4">
-            <div className="flex justify-end gap-1.5">
-              <div className="max-w-[70%] rounded-xl bg-[#2a90ff] px-3 py-2 text-xs text-white">
-                {messages[messages.length - 1].text}
-              </div>
-              <button
-                type="button"
-                className="h-6 w-6 rounded-full border border-[#1a2c41] bg-[#0e1724] text-slate-400"
-              >
-                ?
-              </button>
-            </div>
+            {messages.map((message, index) =>
+              message.role === "user" ? (
+                <div key={`user-${index}`} className="flex justify-end gap-1.5">
+                  <div className="max-w-[70%] rounded-xl bg-[#2a90ff] px-3 py-2 text-xs text-white">
+                    {message.text}
+                  </div>
+                  <button
+                    type="button"
+                    className="h-6 w-6 rounded-full border border-[#1a2c41] bg-[#0e1724] text-slate-400"
+                  >
+                    ?
+                  </button>
+                </div>
+              ) : (
+                <div key={`assistant-${index}`} className="max-w-[80%]">
+                  <div className="rounded-xl border border-[#1a2c41] bg-[#0b1626] px-3 py-2 text-xs text-slate-200">
+                    {message.text}
+                  </div>
+                </div>
+              ),
+            )}
 
             {isThinking && (
               <div className="flex items-center gap-2">
@@ -122,16 +190,16 @@ function Chat({ onToggleSidebar }: ChatProps) {
         <form
           onSubmit={(event) => {
             event.preventDefault();
-            sendMessage(input);
+            void sendMessage(input);
           }}
-          className="flex items-center gap-2 rounded-xl border border-[#10253b] bg-[#030f1d] px-2 py-1.5"
+          className="mx-auto flex w-full max-w-6xl items-center gap-2 rounded-xl border border-[#10253b] bg-[#030f1d] px-2 py-1.5"
         >
           <input
             value={input}
             onChange={(event) => setInput(event.target.value)}
             type="text"
             placeholder={
-              hasMessages
+              messages.length > 0
                 ? "Ask a question about this document..."
                 : "Ask a question across all your documents..."
             }

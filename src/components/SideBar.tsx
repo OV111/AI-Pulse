@@ -9,7 +9,7 @@ type SideBarProps = {
 
 function SideBar({ documents, onNavigate }: SideBarProps) {
   return (
-    <aside className="h-full border-r border-[#0f1f31] bg-[#040912] p-4">
+    <aside className="h-full min-h-screen overflow-y-auto border-r border-[#0f1f31] bg-[#040912] p-4 ">
       <div className="mb-6 flex items-center gap-3 border-b border-[#0f1f31] pb-4 ">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#0b63d7] text-xs font-semibold text-white">
           <Zap />

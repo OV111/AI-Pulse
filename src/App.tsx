@@ -11,7 +11,7 @@ function App() {
 
   return (
     <main className="min-h-screen bg-[#02050a] text-slate-100">
-      <div className="relative min-h-screen w-full md:grid md:grid-cols-[260px_1fr]">
+      <div className="relative min-h-screen w-full md:grid md:grid-cols-[240px_minmax(0,1fr)]">
         {isMobileSidebarOpen && (
           <button
             type="button"
@@ -22,7 +22,7 @@ function App() {
         )}
 
         <div
-          className={`fixed inset-y-0 left-0 z-40 w-[260px] transform transition-transform md:static md:z-auto md:w-auto md:translate-x-0 ${
+          className={`fixed inset-y-0 left-0 z-40 w-[240px] transform transition-transform md:static md:z-auto md:w-auto md:translate-x-0 ${
             isMobileSidebarOpen ? "translate-x-0" : "-translate-x-full"
           }`}
         >
@@ -32,7 +32,7 @@ function App() {
           />
         </div>
 
-        <section className="min-h-screen border-l border-[#0f1f31] md:border-l">
+        <section className="min-h-screen md:border-l md:border-[#0f1f31]">
           <Routes>
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route

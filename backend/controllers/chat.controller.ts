@@ -91,7 +91,7 @@ export async function postDocumentChat(req: Request, res: Response) {
       message: assistantMessage,
     });
   } catch (error) {
-    console.error("POST /chat failed:", error);
+    console.log(error);
     return res.status(500).json({ error: "Failed to generate chat response" });
   }
 }
@@ -139,7 +139,7 @@ export async function postGeneralChat(req: Request, res: Response) {
       message: assistantMessage,
     });
   } catch (error) {
-    console.error("POST /chat/general failed:", error);
+    console.log(error);
     return res.status(500).json({ error: "Failed to generate chat response" });
   }
 }

@@ -6,9 +6,20 @@ import {
   postDocumentChat,
   postGeneralChat,
 } from "./controllers/chat.controller";
+import {
+  deleteDocument,
+  getDocuments,
+  postUploadDocument,
+  uploadDocumentMiddleware,
+} from "./controllers/document.controller";
+import { createRateLimitMiddleware } from "./middleware/rateLimit.middleware";
 
 const app = express();
 const PORT = Number(process.env.PORT) || 5000;
+const uploadRateLimit = createRateLimitMiddleware({
+  windowMs: 60 * 1000,
+  maxRequests: 10,
+});
 
 app.use(express.json({ limit: "1mb" }));
 app.use((_, res, next) => {
@@ -26,6 +37,14 @@ app.use((req, res, next) => {
 
 app.post("/chat", postDocumentChat);
 app.post("/chat/general", postGeneralChat);
+app.get("/documents", getDocuments);
+app.post(
+  "/documents/upload",
+  uploadRateLimit,
+  uploadDocumentMiddleware,
+  postUploadDocument,
+);
+app.delete("/documents/:documentId", deleteDocument);
 app.get("/health", (_, res) => {
   res.status(200).json({ ok: true });
 });

@@ -1,47 +1,107 @@
 import { useState, type ChangeEvent } from "react";
-import { Check, FileText, PanelLeft, Trash2, Upload, X } from "lucide-react";
+import {
+  FileText,
+  MessageSquare,
+  PanelLeft,
+  Trash2,
+  Upload,
+  X,
+} from "lucide-react";
 import type { UploadedDocument } from "../types/documents";
+import { NavLink } from "react-router-dom";
 
 type DocumentUploadProps = {
   documents: UploadedDocument[];
   onDocumentUploaded: (document: UploadedDocument) => void;
+  onDocumentDeleted: (documentId: string) => void;
   onToggleSidebar: () => void;
 };
+
+const API_BASE_URL = "http://localhost:5000";
 
 function DocumentUpload({
   documents,
   onDocumentUploaded,
+  onDocumentDeleted,
   onToggleSidebar,
 }: DocumentUploadProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [isDeletingDocumentId, setIsDeletingDocumentId] = useState<
+    string | null
+  >(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleFileSelect = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
+    setErrorMessage(null);
     setSelectedFile(file);
   };
 
   const clearSelectedFile = () => {
     setSelectedFile(null);
     setIsUploading(false);
+    setErrorMessage(null);
   };
 
-  const uploadSelectedFile = () => {
+  const uploadSelectedFile = async () => {
     if (!selectedFile || isUploading) return;
 
     setIsUploading(true);
-    window.setTimeout(() => {
+    setErrorMessage(null);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", selectedFile);
+
+      const response = await fetch(`${API_BASE_URL}/documents/upload`, {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = (await response.json()) as {
+        document?: UploadedDocument;
+        error?: string;
+      };
+      if (!response.ok || !data.document) {
+        throw new Error(
+          data.error || `Upload failed with status ${response.status}`,
+        );
+      }
+
       onDocumentUploaded({
-        id: crypto.randomUUID(),
-        name: selectedFile.name,
-        sizeKb: Math.max(1, Math.round(selectedFile.size / 1024)),
-        chunks: 4,
+        ...data.document,
         uploadedAt: "Just now",
       });
       setSelectedFile(null);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Upload failed";
+      setErrorMessage(message);
+    } finally {
       setIsUploading(false);
-    }, 700);
+    }
+  };
+
+  const deleteDocument = async (documentId: string) => {
+    if (isDeletingDocumentId) return;
+
+    setIsDeletingDocumentId(documentId);
+    setErrorMessage(null);
+    try {
+      const response = await fetch(`${API_BASE_URL}/documents/${documentId}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) {
+        throw new Error(`Delete failed with status ${response.status}`);
+      }
+      onDocumentDeleted(documentId);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Delete failed";
+      setErrorMessage(message);
+    } finally {
+      setIsDeletingDocumentId(null);
+    }
   };
 
   return (
@@ -132,6 +192,11 @@ function DocumentUpload({
             </button>
           </div>
         )}
+        {errorMessage && (
+          <p className="mb-3 rounded-md border border-red-900/40 bg-red-950/30 px-3 py-2 text-xs text-red-300">
+            {errorMessage}
+          </p>
+        )}
 
         <div>
           <div className="mb-3 flex items-center justify-between">
@@ -180,8 +245,18 @@ function DocumentUpload({
                     </div>
                   </div>
                   <div className="flex items-center gap-2 text-slate-500">
-                    <Check size={13} />
-                    <Trash2 size={13} />
+                    <NavLink to="/all-documents-chat">
+                      <MessageSquare size={13} />
+                    </NavLink>
+                    <button
+                      type="button"
+                      onClick={() => void deleteDocument(document.id)}
+                      disabled={isDeletingDocumentId === document.id}
+                      className="transition hover:text-slate-300 disabled:cursor-not-allowed disabled:opacity-50"
+                      aria-label={`Delete ${document.name}`}
+                    >
+                      <Trash2 size={13} />
+                    </button>
                   </div>
                 </div>
               ))}

@@ -1,13 +1,34 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import SideBar from "./components/SideBar";
 import Chat from "./components/Chat";
 import DocumentUpload from "./components/DocumentUpload";
 import type { UploadedDocument } from "./types/documents";
 
+const API_BASE_URL = "http://localhost:5000";
+
 function App() {
   const [documents, setDocuments] = useState<UploadedDocument[]>([]);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    const loadDocuments = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/documents`);
+        if (!response.ok) return;
+        const data = (await response.json()) as {
+          documents?: UploadedDocument[];
+        };
+        if (Array.isArray(data.documents)) {
+          setDocuments(data.documents);
+        }
+      } catch (error) {
+        console.error("Failed to load documents:", error);
+      }
+    };
+
+    void loadDocuments();
+  }, []);
 
   return (
     <main className="min-h-screen bg-[#02050a] text-slate-100">
@@ -44,15 +65,22 @@ function App() {
                   onDocumentUploaded={(doc) =>
                     setDocuments((prev) => [
                       doc,
-                      ...prev.filter((item) => item.name !== doc.name),
+                      ...prev.filter((item) => item.id !== doc.id),
                     ])
+                  }
+                  onDocumentDeleted={(documentId) =>
+                    setDocuments((prev) =>
+                      prev.filter((document) => document.id !== documentId),
+                    )
                   }
                 />
               }
             />
             <Route
               path="/all-documents-chat"
-              element={<Chat onToggleSidebar={() => setIsMobileSidebarOpen(true)} />}
+              element={
+                <Chat onToggleSidebar={() => setIsMobileSidebarOpen(true)} />
+              }
             />
           </Routes>
         </section>

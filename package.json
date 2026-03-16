@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "dev:client": "vite",
-    "dev:server": "nodemon --watch backend --ext ts --exec \"tsx backend/server.ts\""
+    "dev:server": "nodemon --watch backend --ext ts --exec \"tsx backend/server.ts\"",
+    "start": "tsx backend/server.ts"
   },
   "dependencies": {
     "@huggingface/inference": "^4.13.15",

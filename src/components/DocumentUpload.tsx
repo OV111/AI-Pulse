@@ -17,7 +17,7 @@ type DocumentUploadProps = {
   onToggleSidebar: () => void;
 };
 
-const API_BASE_URL = "http://localhost:5000";
+const API_BASE_URL = "https://ai-pulse-1ary.onrender.com";
 
 function DocumentUpload({
   documents,

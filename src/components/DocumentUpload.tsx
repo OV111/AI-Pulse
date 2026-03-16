@@ -52,6 +52,9 @@ function DocumentUpload({
     setErrorMessage(null);
 
     try {
+      // Wake up Render service if it's sleeping
+      await fetch(`${API_BASE_URL}/health`).catch(() => null);
+
       const formData = new FormData();
       formData.append("file", selectedFile);
 

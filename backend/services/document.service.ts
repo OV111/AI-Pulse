@@ -120,7 +120,16 @@ export async function uploadDocumentFromBuffer(input: {
     status: "processing",
   };
 
-  // Run embedding in background so the response is returned immediately
+  // Always insert plain chunks first to guarantee data is saved
+  const chunkDocs = chunks.map((text, chunkIndex) => ({
+    documentId: docInsert.insertedId,
+    chunkIndex,
+    text,
+    createdAt: now,
+  }));
+  await chunksCollection.insertMany(chunkDocs);
+
+  // Run vector embedding in background
   void (async () => {
     try {
       if (isEmbeddingConfigured()) {
@@ -137,15 +146,6 @@ export async function uploadDocumentFromBuffer(input: {
             }),
         );
         await vectorStore.addDocuments(docs);
-      } else {
-        await chunksCollection.insertMany(
-          chunks.map((text, chunkIndex) => ({
-            documentId: docInsert.insertedId,
-            chunkIndex,
-            text,
-            createdAt: now,
-          })),
-        );
       }
       await documentsCollection.updateOne(
         { _id: docInsert.insertedId },

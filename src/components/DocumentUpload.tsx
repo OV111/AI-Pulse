@@ -45,7 +45,7 @@ function DocumentUpload({
 
   const clearSelectedFile = () => {
     setSelectedFile(null);
-    setIsUploading(false);
+    setUploadStatus("idle");
     setErrorMessage(null);
   };
 

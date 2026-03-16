@@ -104,6 +104,7 @@ export async function uploadDocumentFromBuffer(input: {
   // All heavy work (PDF parsing, chunking, embedding) runs in background
   void (async () => {
     try {
+      // Step 1: extract text (can be slow for large PDFs)
       const extractedText = await extractTextFromBuffer(
         input.buffer,
         input.originalName,
@@ -112,6 +113,7 @@ export async function uploadDocumentFromBuffer(input: {
         throw new Error("No readable text was found in the uploaded file");
       }
 
+      // Step 2: split into chunks
       const splitter = new RecursiveCharacterTextSplitter({
         chunkSize: CHUNK_SIZE,
         chunkOverlap: CHUNK_OVERLAP,
@@ -124,6 +126,7 @@ export async function uploadDocumentFromBuffer(input: {
         throw new Error("Document content is empty after extraction");
       }
 
+      // Step 3: save plain chunks + update doc record
       const chunkDocs = chunks.map((text, chunkIndex) => ({
         documentId: docInsert.insertedId,
         chunkIndex,
@@ -131,37 +134,43 @@ export async function uploadDocumentFromBuffer(input: {
         createdAt: now,
       }));
       await chunksCollection.insertMany(chunkDocs);
-
       await documentsCollection.updateOne(
         { _id: docInsert.insertedId },
         { $set: { extractedText, chunkCount: chunks.length, updatedAt: new Date() } },
       );
 
-      if (isEmbeddingConfigured()) {
-        const vectorStore = getMongoVectorStore(chunksCollection as never);
-        const docs = chunks.map(
-          (text, chunkIndex) =>
-            new LC_Document({
-              pageContent: text,
-              metadata: {
-                documentId: docInsert.insertedId,
-                chunkIndex,
-                createdAt: now,
-              },
-            }),
-        );
-        await vectorStore.addDocuments(docs);
-      }
-
+      // Step 4: mark ready — document is searchable via keyword fallback even without embeddings
       await documentsCollection.updateOne(
         { _id: docInsert.insertedId },
         { $set: { status: "ready", updatedAt: new Date() } },
       );
+
+      // Step 5: add vector embeddings (isolated — failure here does NOT affect document status)
+      if (isEmbeddingConfigured()) {
+        try {
+          const vectorStore = getMongoVectorStore(chunksCollection as never);
+          const docs = chunks.map(
+            (text, chunkIndex) =>
+              new LC_Document({
+                pageContent: text,
+                metadata: {
+                  documentId: docInsert.insertedId,
+                  chunkIndex,
+                  createdAt: now,
+                },
+              }),
+          );
+          await vectorStore.addDocuments(docs);
+        } catch (embeddingError) {
+          console.error("Vector embedding failed (keyword search still works):", embeddingError);
+        }
+      }
     } catch (error) {
       console.error("Background processing failed:", error);
+      const message = error instanceof Error ? error.message : "Processing failed";
       await documentsCollection.updateOne(
         { _id: docInsert.insertedId },
-        { $set: { status: "error", updatedAt: new Date() } },
+        { $set: { status: "error", error: message, updatedAt: new Date() } },
       );
     }
   })();

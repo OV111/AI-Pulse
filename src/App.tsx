@@ -9,6 +9,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL as string;
 
 function App() {
   const [documents, setDocuments] = useState<UploadedDocument[]>([]);
+  const [isLoadingDocuments, setIsLoadingDocuments] = useState(true);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   useEffect(() => {
@@ -26,10 +27,19 @@ function App() {
         }
       } catch (error) {
         console.error("Failed to load documents:", error);
+      } finally {
+        setIsLoadingDocuments(false);
       }
     };
 
     void loadDocuments();
+
+    // Keep Render free-tier service alive (spins down after 15min inactivity)
+    const keepAlive = setInterval(() => {
+      fetch(`${API_BASE_URL}/health`).catch(() => null);
+    }, 10 * 60 * 1000);
+
+    return () => clearInterval(keepAlive);
   }, []);
 
   return (
@@ -63,6 +73,7 @@ function App() {
               element={
                 <DocumentUpload
                   documents={documents}
+                  isLoadingDocuments={isLoadingDocuments}
                   onToggleSidebar={() => setIsMobileSidebarOpen(true)}
                   onDocumentUploaded={(doc) =>
                     setDocuments((prev) => [

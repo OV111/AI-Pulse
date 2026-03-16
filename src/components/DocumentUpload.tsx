@@ -12,6 +12,7 @@ import { NavLink } from "react-router-dom";
 
 type DocumentUploadProps = {
   documents: UploadedDocument[];
+  isLoadingDocuments: boolean;
   onDocumentUploaded: (document: UploadedDocument) => void;
   onDocumentDeleted: (documentId: string) => void;
   onToggleSidebar: () => void;
@@ -21,12 +22,15 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL as string;
 
 function DocumentUpload({
   documents,
+  isLoadingDocuments,
   onDocumentUploaded,
   onDocumentDeleted,
   onToggleSidebar,
 }: DocumentUploadProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState<
+    "idle" | "waking" | "uploading"
+  >("idle");
   const [isDeletingDocumentId, setIsDeletingDocumentId] = useState<
     string | null
   >(null);
@@ -46,15 +50,24 @@ function DocumentUpload({
   };
 
   const uploadSelectedFile = async () => {
-    if (!selectedFile || isUploading) return;
+    if (uploadStatus !== "idle" || !selectedFile) return;
 
-    setIsUploading(true);
+    setUploadStatus("waking");
     setErrorMessage(null);
 
     try {
-      // Wake up Render service if it's sleeping
-      await fetch(`${API_BASE_URL}/health`).catch(() => null);
+      // Wake up Render service if sleeping — retry until healthy or give up
+      for (let attempt = 0; attempt < 6; attempt++) {
+        try {
+          const res = await fetch(`${API_BASE_URL}/health`);
+          if (res.ok) break;
+        } catch (_) {
+          // service not ready yet, retry
+        }
+        await new Promise((r) => setTimeout(r, 5000));
+      }
 
+      setUploadStatus("uploading");
       const formData = new FormData();
       formData.append("file", selectedFile);
 
@@ -83,7 +96,7 @@ function DocumentUpload({
       const message = error instanceof Error ? error.message : "Upload failed";
       setErrorMessage(message);
     } finally {
-      setIsUploading(false);
+      setUploadStatus("idle");
     }
   };
 
@@ -175,7 +188,8 @@ function DocumentUpload({
               <button
                 type="button"
                 onClick={clearSelectedFile}
-                className="text-slate-500 transition hover:text-slate-300"
+                disabled={uploadStatus !== "idle"}
+                className="text-slate-500 transition hover:text-slate-300 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <X size={14} />
               </button>
@@ -183,16 +197,21 @@ function DocumentUpload({
 
             <div className="h-2 rounded-full bg-[#0a1422]">
               <div
-                className={`h-2 rounded-full bg-[#2a90ff] transition-all ${isUploading ? "w-full" : "w-full"}`}
+                className={`h-2 rounded-full bg-[#2a90ff] transition-all ${uploadStatus !== "idle" ? "animate-pulse w-full" : "w-0"}`}
               />
             </div>
 
             <button
               type="button"
               onClick={uploadSelectedFile}
-              className="mt-2 h-7 w-full rounded-md bg-[#2a90ff] text-xs font-medium text-white transition hover:bg-[#3d9cff]"
+              disabled={uploadStatus !== "idle"}
+              className="mt-2 h-7 w-full rounded-md bg-[#2a90ff] text-xs font-medium text-white transition hover:bg-[#3d9cff] disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {isUploading ? "Uploading..." : "Upload 1 file"}
+              {uploadStatus === "waking"
+                ? "Connecting to server..."
+                : uploadStatus === "uploading"
+                  ? "Uploading..."
+                  : "Upload 1 file"}
             </button>
           </div>
         )}
@@ -207,14 +226,29 @@ function DocumentUpload({
             <h3 className="text-sm font-semibold text-slate-200">
               Your Documents
             </h3>
-            {documents.length > 0 && (
+            {!isLoadingDocuments && documents.length > 0 && (
               <span className="text-[10px] text-slate-500">
                 {documents.length} document{documents.length > 1 ? "s" : ""}
               </span>
             )}
           </div>
-            
-          {documents.length === 0 ? (
+
+          {isLoadingDocuments ? (
+            <div className="space-y-2">
+              {[1, 2, 3].map((i) => (
+                <div
+                  key={i}
+                  className="flex items-center gap-2 rounded-lg border border-[#10253b] bg-[#071021] px-3 py-2"
+                >
+                  <div className="h-7 w-7 animate-pulse rounded-md bg-[#0a2d50]" />
+                  <div className="flex-1 space-y-1.5">
+                    <div className="h-2.5 w-2/5 animate-pulse rounded bg-[#0d2037]" />
+                    <div className="h-2 w-1/3 animate-pulse rounded bg-[#0a1a2e]" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : documents.length === 0 ? (
             <div className="rounded-xl border border-[#0f1f31] bg-[#010912] px-4 py-14 text-center">
               <div className="mx-auto mb-3 flex h-9 w-9 items-center justify-center rounded-lg border border-[#1e2a39] bg-[#101826] text-slate-400">
                 <FileText size={14} />

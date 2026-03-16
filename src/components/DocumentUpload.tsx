@@ -283,7 +283,7 @@ function DocumentUpload({
                     </div>
                   </div>
                   <div className="flex items-center gap-2 text-slate-500">
-                    <NavLink to="/chat">
+                    <NavLink to={`/chat/${document.id}`}>
                       <MessageSquare size={13} />
                     </NavLink>
                     <button

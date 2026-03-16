@@ -1,13 +1,22 @@
+import { useNavigate } from "react-router-dom";
 import { NavLink } from "react-router-dom";
 import { Zap, House, Library, MessageSquare } from "lucide-react";
 import type { UploadedDocument } from "../types/documents";
 
 type SideBarProps = {
   documents: UploadedDocument[];
+  isLoadingDocuments: boolean;
   onNavigate?: () => void;
 };
 
-function SideBar({ documents, onNavigate }: SideBarProps) {
+function SideBar({ documents, isLoadingDocuments, onNavigate }: SideBarProps) {
+  const navigate = useNavigate();
+
+  const handleDocumentClick = (documentId: string) => {
+    navigate(`/chat/${documentId}`);
+    onNavigate?.();
+  };
+
   return (
     <aside className="h-full min-h-screen overflow-y-auto border-r border-[#0f1f31] bg-[#040912] p-4 ">
       <div className="mb-6 flex items-center gap-3 border-b border-[#0f1f31] pb-4 ">
@@ -25,7 +34,7 @@ function SideBar({ documents, onNavigate }: SideBarProps) {
           to="/dashboard"
           onClick={onNavigate}
           className={({ isActive }) =>
-            `flex gap-2 block rounded-md px-3 py-2 text-sm transition ${
+            `flex gap-2 rounded-md px-3 py-2 text-sm transition ${
               isActive
                 ? "bg-[#0d2037] text-slate-100"
                 : "text-slate-400 hover:bg-[#0b1626] hover:text-slate-200"
@@ -37,9 +46,10 @@ function SideBar({ documents, onNavigate }: SideBarProps) {
         </NavLink>
         <NavLink
           to="/chat"
+          end
           onClick={onNavigate}
           className={({ isActive }) =>
-            `flex  gap-2 block rounded-md px-3 py-2 text-sm transition ${
+            `flex gap-2 rounded-md px-3 py-2 text-sm transition ${
               isActive
                 ? "bg-[#0d2037] text-slate-100"
                 : "text-slate-400 hover:bg-[#0b1626] hover:text-slate-200"
@@ -55,7 +65,16 @@ function SideBar({ documents, onNavigate }: SideBarProps) {
         <p className="text-[12px] font-semibold uppercase tracking-wide text-slate-500">
           Documents
         </p>
-        {documents.length === 0 ? (
+        {isLoadingDocuments ? (
+          <div className="mt-3 space-y-1">
+            {[1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className="h-7 animate-pulse rounded-md bg-[#0d2037]"
+              />
+            ))}
+          </div>
+        ) : documents.length === 0 ? (
           <div className="flex flex-col gap-2 justify-center items-center mt-4  p-4 text-center">
             <MessageSquare />
             <p className=" text-[11px] text-slate-500">
@@ -68,7 +87,8 @@ function SideBar({ documents, onNavigate }: SideBarProps) {
               <button
                 key={document.id}
                 type="button"
-                className="flex w-full items-center gap-2 rounded-md bg-[#0d2037] px-2 py-1.5 text-left text-xs text-slate-200"
+                onClick={() => handleDocumentClick(document.id)}
+                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-slate-400 transition hover:bg-[#0d2037] hover:text-slate-200"
               >
                 <span className="truncate">{document.name}</span>
               </button>

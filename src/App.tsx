@@ -42,6 +42,8 @@ function App() {
     return () => clearInterval(keepAlive);
   }, []);
 
+  const closeSidebar = () => setIsMobileSidebarOpen(false);
+
   return (
     <main className="min-h-screen bg-[#02050a] text-slate-100">
       <div className="relative min-h-screen w-full md:grid md:grid-cols-[240px_minmax(0,1fr)]">
@@ -49,19 +51,20 @@ function App() {
           <button
             type="button"
             aria-label="Close sidebar overlay"
-            onClick={() => setIsMobileSidebarOpen(false)}
+            onClick={closeSidebar}
             className="fixed inset-0 z-30 bg-black/50 md:hidden"
           />
         )}
 
         <div
-          className={`fixed inset-y-0 left-0 z-40 w-[240px] transform transition-transform md:static md:z-auto md:w-auto md:translate-x-0 ${
+          className={`fixed inset-y-0 left-0 z-40 w-60 transform transition-transform md:static md:z-auto md:w-auto md:translate-x-0 ${
             isMobileSidebarOpen ? "translate-x-0" : "-translate-x-full"
           }`}
         >
           <SideBar
             documents={documents}
-            onNavigate={() => setIsMobileSidebarOpen(false)}
+            isLoadingDocuments={isLoadingDocuments}
+            onNavigate={closeSidebar}
           />
         </div>
 
@@ -92,7 +95,19 @@ function App() {
             <Route
               path="/chat"
               element={
-                <Chat onToggleSidebar={() => setIsMobileSidebarOpen(true)} />
+                <Chat
+                  documents={documents}
+                  onToggleSidebar={() => setIsMobileSidebarOpen(true)}
+                />
+              }
+            />
+            <Route
+              path="/chat/:documentId"
+              element={
+                <Chat
+                  documents={documents}
+                  onToggleSidebar={() => setIsMobileSidebarOpen(true)}
+                />
               }
             />
           </Routes>

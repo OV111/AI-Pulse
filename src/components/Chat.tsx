@@ -1,6 +1,8 @@
-import { useState } from "react";
-import { ArrowUp, PanelLeft, Sparkles } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { useParams } from "react-router-dom";
+import { ArrowUp, PanelLeft, Sparkles, User } from "lucide-react";
 import useSWRMutation from "swr/mutation";
+import type { UploadedDocument } from "../types/documents";
 
 type ChatMessage = {
   role: "user" | "assistant";
@@ -16,7 +18,7 @@ const suggestions = [
 
 type ChatProps = {
   onToggleSidebar: () => void;
-  documentId?: string;
+  documents: UploadedDocument[];
 };
 
 type ChatApiPayload = {
@@ -28,7 +30,7 @@ type ChatApiResponse = {
   message?: { role: "assistant"; content: string };
 };
 
-const postGeneralChat = async (
+const postChat = async (
   url: string,
   { arg }: { arg: ChatApiPayload },
 ): Promise<ChatApiResponse> => {
@@ -45,19 +47,41 @@ const postGeneralChat = async (
   return response.json();
 };
 
-function Chat({ onToggleSidebar, documentId }: ChatProps) {
+function Chat({ onToggleSidebar, documents }: ChatProps) {
+  const { documentId } = useParams<{ documentId?: string }>();
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isThinking, setIsThinking] = useState(false);
-  const isDocumentChat = Boolean(documentId);
-  const chatUrl = isDocumentChat
-    ? `${import.meta.env.VITE_API_BASE_URL as string}/chat`
-    : `${import.meta.env.VITE_API_BASE_URL as string}/chat/general`;
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const { trigger: triggerChat } = useSWRMutation(chatUrl, postGeneralChat);
+  const isDocumentChat = Boolean(documentId);
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL as string;
+  // Include documentId in the SWR key so each document gets its own mutation state
+  const swrKey = isDocumentChat ? `${API_BASE_URL}/chat#${documentId}` : `${API_BASE_URL}/chat/general`;
+  const fetchUrl = isDocumentChat ? `${API_BASE_URL}/chat` : `${API_BASE_URL}/chat/general`;
+
+  const documentName = documentId
+    ? (documents.find((d) => d.id === documentId)?.name ?? "Document")
+    : null;
+
+  // Reset conversation when switching documents
+  useEffect(() => {
+    setMessages([]);
+    setInput("");
+  }, [documentId]);
+
+  // Auto-scroll to latest message
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, isThinking]);
+
+  const { trigger: triggerChat } = useSWRMutation(swrKey, (_key, opts: { arg: ChatApiPayload }) =>
+    postChat(fetchUrl, opts),
+  );
+
   const sendMessage = async (text: string) => {
     const content = text.trim();
-    if (!content) return;
+    if (!content || isThinking) return;
 
     const updatedMessages = [
       ...messages,
@@ -113,53 +137,66 @@ function Chat({ onToggleSidebar, documentId }: ChatProps) {
           <PanelLeft size={12} />
         </button>
 
-        <span>All Documents Chat</span>
+        <span>{documentName ?? "All Documents Chat"}</span>
       </header>
 
       <div className="relative mx-auto flex w-full max-w-6xl flex-1 overflow-y-auto px-4 py-5">
-        {!(messages.length > 0) ? (
+        {messages.length === 0 ? (
           <div className="mx-auto mt-20 max-w-xl text-center">
             <div className="mx-auto mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-[#0a2d50] text-[#4ca1ff]">
               <Sparkles size={16} />
             </div>
             <h2 className="text-lg font-semibold text-slate-100">
-              Chat with all your documents
+              {isDocumentChat
+                ? `Chat with ${documentName ?? "this document"}`
+                : "Chat with all your documents"}
             </h2>
             <p className="mx-auto mt-2 max-w-md text-xs leading-5 text-slate-500">
-              Ask questions across{" "}
-              <span className="text-slate-100">all uploaded documents.</span>
-              <br />
-              The AI will search through everything and cross-reference
-              information for you.
+              {isDocumentChat ? (
+                <>
+                  Ask questions about{" "}
+                  <span className="text-slate-100">
+                    {documentName ?? "this document"}
+                  </span>
+                  . The AI will answer based on its content.
+                </>
+              ) : (
+                <>
+                  Ask questions across{" "}
+                  <span className="text-slate-100">all uploaded documents.</span>
+                  <br />
+                  The AI will search through everything and cross-reference
+                  information for you.
+                </>
+              )}
             </p>
 
-            <div className="mx-auto mt-5 grid max-w-[460px] grid-cols-1 gap-2 text-left sm:grid-cols-2">
-              {suggestions.map((item) => (
-                <button
-                  key={item}
-                  type="button"
-                  onClick={() => void sendMessage(item)}
-                  className="rounded-xl border border-[#1a2c41] bg-[#071021] px-3 py-2 text-xs text-slate-400 transition hover:border-[#28507e] hover:text-slate-300"
-                >
-                  {item}
-                </button>
-              ))}
-            </div>
+            {!isDocumentChat && (
+              <div className="mx-auto mt-5 grid max-w-[460px] grid-cols-1 gap-2 text-left sm:grid-cols-2">
+                {suggestions.map((item) => (
+                  <button
+                    key={item}
+                    type="button"
+                    onClick={() => void sendMessage(item)}
+                    className="rounded-xl border border-[#1a2c41] bg-[#071021] px-3 py-2 text-xs text-slate-400 transition hover:border-[#28507e] hover:text-slate-300"
+                  >
+                    {item}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="w-full space-y-4">
             {messages.map((message, index) =>
               message.role === "user" ? (
                 <div key={`user-${index}`} className="flex justify-end gap-1.5">
                   <div className="max-w-[70%] rounded-xl bg-[#2a90ff] px-3 py-2 text-xs text-white">
                     {message.text}
                   </div>
-                  <button
-                    type="button"
-                    className="h-6 w-6 rounded-full border border-[#1a2c41] bg-[#0e1724] text-slate-400"
-                  >
-                    ?
-                  </button>
+                  <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[#1a2c41] bg-[#0e1724] text-slate-400">
+                    <User size={11} />
+                  </div>
                 </div>
               ) : (
                 <div key={`assistant-${index}`} className="max-w-[80%]">
@@ -182,6 +219,8 @@ function Chat({ onToggleSidebar, documentId }: ChatProps) {
                 </div>
               </div>
             )}
+
+            <div ref={messagesEndRef} />
           </div>
         )}
       </div>
@@ -199,15 +238,16 @@ function Chat({ onToggleSidebar, documentId }: ChatProps) {
             onChange={(event) => setInput(event.target.value)}
             type="text"
             placeholder={
-              messages.length > 0
-                ? "Ask a question about this document..."
+              isDocumentChat
+                ? `Ask a question about ${documentName ?? "this document"}...`
                 : "Ask a question across all your documents..."
             }
             className="h-8 flex-1 bg-transparent px-1 text-xs text-slate-200 outline-none placeholder:text-slate-500"
           />
           <button
             type="submit"
-            className="flex h-6 w-6 items-center justify-center rounded-md bg-[#0c4d9b] text-[#b9d9ff] transition hover:bg-[#1366c7]"
+            disabled={!input.trim() || isThinking}
+            className="flex h-6 w-6 items-center justify-center rounded-md bg-[#0c4d9b] text-[#b9d9ff] transition hover:bg-[#1366c7] disabled:cursor-not-allowed disabled:opacity-50"
           >
             <ArrowUp size={13} />
           </button>

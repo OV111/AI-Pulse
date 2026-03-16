@@ -212,7 +212,7 @@ function DocumentUpload({
               </span>
             )}
           </div>
-
+            
           {documents.length === 0 ? (
             <div className="rounded-xl border border-[#0f1f31] bg-[#010912] px-4 py-14 text-center">
               <div className="mx-auto mb-3 flex h-9 w-9 items-center justify-center rounded-lg border border-[#1e2a39] bg-[#101826] text-slate-400">
@@ -248,7 +248,7 @@ function DocumentUpload({
                     </div>
                   </div>
                   <div className="flex items-center gap-2 text-slate-500">
-                    <NavLink to="/all-documents-chat">
+                    <NavLink to="/chat">
                       <MessageSquare size={13} />
                     </NavLink>
                     <button

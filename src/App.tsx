@@ -14,6 +14,8 @@ function App() {
   useEffect(() => {
     const loadDocuments = async () => {
       try {
+        // Wake up Render service if sleeping
+        await fetch(`${API_BASE_URL}/health`).catch(() => null);
         const response = await fetch(`${API_BASE_URL}/documents`);
         if (!response.ok) return;
         const data = (await response.json()) as {
@@ -77,7 +79,7 @@ function App() {
               }
             />
             <Route
-              path="/all-documents-chat"
+              path="/chat"
               element={
                 <Chat onToggleSidebar={() => setIsMobileSidebarOpen(true)} />
               }

@@ -63,14 +63,15 @@ function DocumentUpload({
         body: formData,
       });
 
+      if (!response.ok) {
+        throw new Error(`Upload failed with status ${response.status}`);
+      }
       const data = (await response.json()) as {
         document?: UploadedDocument;
         error?: string;
       };
-      if (!response.ok || !data.document) {
-        throw new Error(
-          data.error || `Upload failed with status ${response.status}`,
-        );
+      if (!data.document) {
+        throw new Error(data.error || "Upload failed");
       }
 
       onDocumentUploaded({

@@ -51,8 +51,8 @@ function Chat({ onToggleSidebar, documentId }: ChatProps) {
   const [isThinking, setIsThinking] = useState(false);
   const isDocumentChat = Boolean(documentId);
   const chatUrl = isDocumentChat
-    ? "https://ai-pulse-1ary.onrender.com/chat"
-    : "https://ai-pulse-1ary.onrender.com/chat/general";
+    ? `${import.meta.env.VITE_API_BASE_URL as string}/chat`
+    : `${import.meta.env.VITE_API_BASE_URL as string}/chat/general`;
 
   const { trigger: triggerChat } = useSWRMutation(chatUrl, postGeneralChat);
   const sendMessage = async (text: string) => {

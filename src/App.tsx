@@ -5,7 +5,7 @@ import Chat from "./components/Chat";
 import DocumentUpload from "./components/DocumentUpload";
 import type { UploadedDocument } from "./types/documents";
 
-const API_BASE_URL = "https://ai-pulse-1ary.onrender.com";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL as string;
 
 function App() {
   const [documents, setDocuments] = useState<UploadedDocument[]>([]);

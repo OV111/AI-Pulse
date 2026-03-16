@@ -106,59 +106,61 @@ export async function uploadDocumentFromBuffer(input: {
     extractedText,
     chunkCount: chunks.length,
     uploadedAt: now,
-    status: "ready",
+    status: "processing",
     createdAt: now,
     updatedAt: now,
   });
 
-  if (isEmbeddingConfigured()) {
-    try {
-      const vectorStore = getMongoVectorStore(chunksCollection as never);
-      const docs = chunks.map(
-        (text, chunkIndex) =>
-          new LC_Document({
-            pageContent: text,
-            metadata: {
-              documentId: docInsert.insertedId,
-              chunkIndex,
-              createdAt: now,
-            },
-          }),
-      );
-      await vectorStore.addDocuments(docs);
-    } catch (error) {
-      console.warn(
-        "Vector insert failed. Falling back to plain chunk insert.",
-        error,
-      );
-      await chunksCollection.insertMany(
-        chunks.map((text, chunkIndex) => ({
-          documentId: docInsert.insertedId,
-          chunkIndex,
-          text,
-          createdAt: now,
-        })),
-      );
-    }
-  } else {
-    await chunksCollection.insertMany(
-      chunks.map((text, chunkIndex) => ({
-        documentId: docInsert.insertedId,
-        chunkIndex,
-        text,
-        createdAt: now,
-      })),
-    );
-  }
-
-  return {
+  const result: UploadedDocumentDTO = {
     id: docInsert.insertedId.toString(),
     name: baseName || input.originalName,
     sizeKb: Math.max(1, Math.round(input.size / 1024)),
     chunks: chunks.length,
     uploadedAt: now.toISOString(),
-    status: "ready",
+    status: "processing",
   };
+
+  // Run embedding in background so the response is returned immediately
+  void (async () => {
+    try {
+      if (isEmbeddingConfigured()) {
+        const vectorStore = getMongoVectorStore(chunksCollection as never);
+        const docs = chunks.map(
+          (text, chunkIndex) =>
+            new LC_Document({
+              pageContent: text,
+              metadata: {
+                documentId: docInsert.insertedId,
+                chunkIndex,
+                createdAt: now,
+              },
+            }),
+        );
+        await vectorStore.addDocuments(docs);
+      } else {
+        await chunksCollection.insertMany(
+          chunks.map((text, chunkIndex) => ({
+            documentId: docInsert.insertedId,
+            chunkIndex,
+            text,
+            createdAt: now,
+          })),
+        );
+      }
+      await documentsCollection.updateOne(
+        { _id: docInsert.insertedId },
+        { $set: { status: "ready", updatedAt: new Date() } },
+      );
+    } catch (error) {
+      console.error("Background embedding failed:", error);
+      await documentsCollection.updateOne(
+        { _id: docInsert.insertedId },
+        { $set: { status: "error", updatedAt: new Date() } },
+      );
+    }
+  })();
+
+  return result;
 }
 
 export async function listUploadedDocuments(): Promise<UploadedDocumentDTO[]> {

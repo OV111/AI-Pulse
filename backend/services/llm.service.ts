@@ -150,7 +150,7 @@ async function buildRetrievedContext(input: {
       "MongoDB vector search failed. Falling back to keyword scan.",
       error,
     );
-    scored = await vectorSearchFallback({
+    scored = await vectorSearchFallback({ 
       latestUserMessage,
       mode,
       documentId,

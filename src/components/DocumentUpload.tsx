@@ -268,24 +268,35 @@ function DocumentUpload({
                   className="flex items-center justify-between rounded-lg border border-[#10253b] bg-[#071021] px-3 py-2"
                 >
                   <div className="flex items-center gap-2">
-                    <div className="flex h-7 w-7 items-center justify-center rounded-md bg-[#0a2d50] text-[#4ca1ff]">
+                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[#0a2d50] text-[#4ca1ff]">
                       <FileText size={13} />
                     </div>
                     <div className="text-xs">
                       <p className="text-slate-200">{document.name}</p>
-                      <p className="text-slate-500">
-                        <span>{document.uploadedAt}</span>
-                        <span className="px-1">•</span>
-                        <span>{document.sizeKb} kB</span>
-                        <span className="px-1">•</span>
-                        <span>{document.chunks} chunks</span>
-                      </p>
+                      {document.status === "processing" ? (
+                        <p className="flex items-center gap-1 text-amber-400">
+                          <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-amber-400" />
+                          Processing…
+                        </p>
+                      ) : document.status === "error" ? (
+                        <p className="text-red-400">Processing failed</p>
+                      ) : (
+                        <p className="text-slate-500">
+                          <span>{document.uploadedAt}</span>
+                          <span className="px-1">•</span>
+                          <span>{document.sizeKb} kB</span>
+                          <span className="px-1">•</span>
+                          <span>{document.chunks} chunks</span>
+                        </p>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-2 text-slate-500">
-                    <NavLink to={`/chat/${document.id}`}>
-                      <MessageSquare size={13} />
-                    </NavLink>
+                    {document.status === "ready" && (
+                      <NavLink to={`/chat/${document.id}`}>
+                        <MessageSquare size={13} />
+                      </NavLink>
+                    )}
                     <button
                       type="button"
                       onClick={() => void deleteDocument(document.id)}

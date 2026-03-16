@@ -12,27 +12,24 @@ function App() {
   const [isLoadingDocuments, setIsLoadingDocuments] = useState(true);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
-  useEffect(() => {
-    const loadDocuments = async () => {
-      try {
-        // Wake up Render service if sleeping
-        await fetch(`${API_BASE_URL}/health`).catch(() => null);
-        const response = await fetch(`${API_BASE_URL}/documents`);
-        if (!response.ok) return;
-        const data = (await response.json()) as {
-          documents?: UploadedDocument[];
-        };
-        if (Array.isArray(data.documents)) {
-          setDocuments(data.documents);
-        }
-      } catch (error) {
-        console.error("Failed to load documents:", error);
-      } finally {
-        setIsLoadingDocuments(false);
+  const fetchDocuments = async (initial = false) => {
+    try {
+      if (initial) await fetch(`${API_BASE_URL}/health`).catch(() => null);
+      const response = await fetch(`${API_BASE_URL}/documents`);
+      if (!response.ok) return;
+      const data = (await response.json()) as { documents?: UploadedDocument[] };
+      if (Array.isArray(data.documents)) {
+        setDocuments(data.documents);
       }
-    };
+    } catch (error) {
+      console.error("Failed to load documents:", error);
+    } finally {
+      if (initial) setIsLoadingDocuments(false);
+    }
+  };
 
-    void loadDocuments();
+  useEffect(() => {
+    void fetchDocuments(true);
 
     // Keep Render free-tier service alive (spins down after 15min inactivity)
     const keepAlive = setInterval(() => {
@@ -41,6 +38,14 @@ function App() {
 
     return () => clearInterval(keepAlive);
   }, []);
+
+  // Poll every 4s while any document is still processing
+  useEffect(() => {
+    const hasProcessing = documents.some((d) => d.status === "processing");
+    if (!hasProcessing) return;
+    const poll = setInterval(() => void fetchDocuments(), 4000);
+    return () => clearInterval(poll);
+  }, [documents]);
 
   const closeSidebar = () => setIsMobileSidebarOpen(false);
 

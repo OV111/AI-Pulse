@@ -6,6 +6,7 @@ export type UploadedDocument = {
   sizeKb: number;
   chunks: number;
   uploadedAt: string;
+  status: "processing" | "ready" | "error";
 };
 
 export  interface Document {

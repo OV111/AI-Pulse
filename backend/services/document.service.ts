@@ -74,37 +74,18 @@ export async function uploadDocumentFromBuffer(input: {
   const chunksCollection = getDocumentChunksCollection();
   const now = new Date();
 
-  const extractedText = await extractTextFromBuffer(
-    input.buffer,
-    input.originalName,
-  );
-  if (!extractedText.trim()) {
-    throw new Error("No readable text was found in the uploaded file");
-  }
-
-  const splitter = new RecursiveCharacterTextSplitter({
-    chunkSize: CHUNK_SIZE,
-    chunkOverlap: CHUNK_OVERLAP,
-  });
-  const splitDocuments = await splitter.createDocuments([extractedText]);
-  const chunks = splitDocuments
-    .map((doc) => doc.pageContent.trim())
-    .filter(Boolean);
-  if (chunks.length === 0) {
-    throw new Error("Document content is empty after extraction");
-  }
-
   const baseName = path.basename(
     input.originalName,
     path.extname(input.originalName),
   );
+
+  // Insert the record immediately so the response is fast (avoids Render's 25s timeout)
   const docInsert = await documentsCollection.insertOne({
     name: baseName || input.originalName,
     originalName: input.originalName,
     type: input.mimetype,
     size: input.size,
-    extractedText,
-    chunkCount: chunks.length,
+    chunkCount: 0,
     uploadedAt: now,
     status: "processing",
     createdAt: now,
@@ -115,23 +96,47 @@ export async function uploadDocumentFromBuffer(input: {
     id: docInsert.insertedId.toString(),
     name: baseName || input.originalName,
     sizeKb: Math.max(1, Math.round(input.size / 1024)),
-    chunks: chunks.length,
+    chunks: 0,
     uploadedAt: now.toISOString(),
     status: "processing",
   };
 
-  // Always insert plain chunks first to guarantee data is saved
-  const chunkDocs = chunks.map((text, chunkIndex) => ({
-    documentId: docInsert.insertedId,
-    chunkIndex,
-    text,
-    createdAt: now,
-  }));
-  await chunksCollection.insertMany(chunkDocs);
-
-  // Run vector embedding in background
+  // All heavy work (PDF parsing, chunking, embedding) runs in background
   void (async () => {
     try {
+      const extractedText = await extractTextFromBuffer(
+        input.buffer,
+        input.originalName,
+      );
+      if (!extractedText.trim()) {
+        throw new Error("No readable text was found in the uploaded file");
+      }
+
+      const splitter = new RecursiveCharacterTextSplitter({
+        chunkSize: CHUNK_SIZE,
+        chunkOverlap: CHUNK_OVERLAP,
+      });
+      const splitDocuments = await splitter.createDocuments([extractedText]);
+      const chunks = splitDocuments
+        .map((doc) => doc.pageContent.trim())
+        .filter(Boolean);
+      if (chunks.length === 0) {
+        throw new Error("Document content is empty after extraction");
+      }
+
+      const chunkDocs = chunks.map((text, chunkIndex) => ({
+        documentId: docInsert.insertedId,
+        chunkIndex,
+        text,
+        createdAt: now,
+      }));
+      await chunksCollection.insertMany(chunkDocs);
+
+      await documentsCollection.updateOne(
+        { _id: docInsert.insertedId },
+        { $set: { extractedText, chunkCount: chunks.length, updatedAt: new Date() } },
+      );
+
       if (isEmbeddingConfigured()) {
         const vectorStore = getMongoVectorStore(chunksCollection as never);
         const docs = chunks.map(
@@ -147,12 +152,13 @@ export async function uploadDocumentFromBuffer(input: {
         );
         await vectorStore.addDocuments(docs);
       }
+
       await documentsCollection.updateOne(
         { _id: docInsert.insertedId },
         { $set: { status: "ready", updatedAt: new Date() } },
       );
     } catch (error) {
-      console.error("Background embedding failed:", error);
+      console.error("Background processing failed:", error);
       await documentsCollection.updateOne(
         { _id: docInsert.insertedId },
         { $set: { status: "error", updatedAt: new Date() } },
